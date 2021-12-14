@@ -1,0 +1,1 @@
+The .xcf file is a GIMP project that shows the board front and back as different layers, all the test points that I've been able to identify and anything else I've discovered about the hardware that I can easily illustrate. It's useful as a cross reference and as documentation.
