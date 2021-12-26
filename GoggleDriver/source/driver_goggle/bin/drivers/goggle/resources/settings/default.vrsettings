@@ -1,0 +1,17 @@
+{
+   "driver_goggle" : {
+      "enable" : true,
+      "serialNumber" : "1234",
+      "modelNumber" : "Goggle 1",
+      "windowX" : 1680,
+      "windowY" : 0,
+      "windowWidth" : 1920,
+      "windowHeight" : 1080,
+      "renderWidth" : 960,
+      "renderHeight" : 1080,
+      "secondsFromVsyncToPhotons" : 0.011,
+      "displayFrequency" : 60,
+	  "ipd" : 0.060,
+	  "headToEyeDepthMeters" : 0.060
+   }
+}

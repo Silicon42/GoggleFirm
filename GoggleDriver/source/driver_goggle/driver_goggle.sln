@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32002.185
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "driver_goggle", "driver_sample.vcxproj", "{A47C788B-1BDA-4057-87A9-FC35ED711B44}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+		x32|x64 = x32|x64
+		x32|x86 = x32|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Debug|x64.ActiveCfg = Debug|x64
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Debug|x64.Build.0 = Debug|x64
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Debug|x86.ActiveCfg = Debug|Win32
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Debug|x86.Build.0 = Debug|Win32
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Release|x64.ActiveCfg = Release|x64
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Release|x64.Build.0 = Release|x64
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Release|x86.ActiveCfg = Release|Win32
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.Release|x86.Build.0 = Release|Win32
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.x32|x64.ActiveCfg = x32|x64
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.x32|x64.Build.0 = x32|x64
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.x32|x86.ActiveCfg = x32|Win32
+		{A47C788B-1BDA-4057-87A9-FC35ED711B44}.x32|x86.Build.0 = x32|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {982FF1C5-7C18-4F75-9FE7-7B0C53FB64ED}
+	EndGlobalSection
+EndGlobal

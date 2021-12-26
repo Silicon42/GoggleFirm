@@ -92,15 +92,20 @@
 __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DESC_SIZE] __ALIGN_END =
 {
   /* USER CODE BEGIN 0 */
-	    0x05, 0x03,                    // USAGE_PAGE (VR Controls)
-	    0x09, 0x06,                    //   USAGE (Head Mounted Display)
+	    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+	    0x09, 0x05,                    // USAGE (Game Pad)
 	    0xa1, 0x01,                    // COLLECTION (Application)
-	    0x09, 0x05,                    //   USAGE (Head Tracker)
+	    0x75, 0x20,                    //   REPORT_SIZE (32)
+	    0x95, 0x07,                    //   REPORT_COUNT (7)
 	    0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
-	    0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
-	    0x85, 0x01,                    //   REPORT_ID (1)
-	    0x75, 0x10,                    //   REPORT_SIZE (16)
-	    0x95, 0x01,                    //   REPORT_COUNT (1)
+	    0x27, 0xff, 0xff, 0xff, 0xff,  //   LOGICAL_MAXIMUM (4294967295)
+	    0x09, 0x46,                    //   USAGE (Vno)
+	    0x09, 0x43,                    //   USAGE (Vbrx)
+	    0x09, 0x44,                    //   USAGE (Vbry)
+	    0x09, 0x45,                    //   USAGE (Vbrx)
+	    0x09, 0x40,                    //   USAGE (Vx)
+	    0x09, 0x41,                    //   USAGE (Vy)
+	    0x09, 0x42,                    //   USAGE (Vz)
 	    0x81, 0x02,                    //   INPUT (Data,Var,Abs)
   /* USER CODE END 0 */
   0xC0    /*     END_COLLECTION	             */

@@ -1,5 +1,5 @@
 main.c:71:6:TCFormatI2C	24	static
 main.c:87:9:TCFormatReadI2C	24	static
-main.c:104:5:main	296	static
-main.c:359:6:SystemClock_Config	88	static
-main.c:408:6:Error_Handler	4	static,ignoring_inline_asm
+main.c:104:5:main	72	static
+main.c:363:6:SystemClock_Config	88	static
+main.c:412:6:Error_Handler	4	static,ignoring_inline_asm

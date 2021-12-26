@@ -27,7 +27,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "usbd_customhid.h"
+#include "hidfix.h"
+#include "exmath.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,8 +38,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TC_ADDR 0x1E	//0x0F << 1
-
+#define TC_ADDR 0x1E	//Toshiba TC358870XBG	I2C Address: 0x0F << 1
+#define AK_ADDR 0x1A	//AsahiKASEI AK09915c	I2C Address: 0x0D << 1
+//#define PROX_ADDR 0x90	//Proximity Sensor 		I2C Address: 0x48 << 1	//not really necessary since it's an LCD
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,7 +51,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t aTxBuffer[6] = {0};
+uint8_t aTxBuffer[9] = {0};
+uint8_t aRxBuffer[17] = {0};
 
 /* USER CODE END PV */
 
@@ -57,7 +60,6 @@ uint8_t aTxBuffer[6] = {0};
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 extern USBD_HandleTypeDef hUsbDeviceFS;
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -95,6 +97,45 @@ uint8_t TCFormatReadI2C(uint16_t regAddr)
 	return 0x00;
 }
 
+struct AKMeasure
+{
+	//bool dataReady;
+	//bool dataOverrun;
+	int16_t x;
+	int16_t y;
+	int16_t z;
+	//bool overflow;
+	//bool invalidData;	//only matters if using the FIFO mode
+};
+
+//returns true if data is valid	//TODO: clean this up a bit
+bool AKGetSingleMeasure(AKMeasure* data)
+{
+	aTxBuffer[0] = 0x31;	//single measure mode
+	aTxBuffer[1] = 0x01;
+	if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10) == HAL_OK)
+	{
+		aTxBuffer[0] = 0x10;	//read data
+		if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 1, 10) == HAL_OK)
+			if( HAL_I2C_Master_Receive(&hi2c2, AK_ADDR, aTxBuffer, 8, 10) == HAL_OK)
+				if (aTxBuffer[0] | 1 && aTxBuffer[9] | 8)	//data ready and no overflow
+				{
+					data->x = aTxBuffer[1] | (int16_T)aTxBuffer[2] << 8;
+					data->y = aTxBuffer[3] | (int16_T)aTxBuffer[4] << 8;
+					data->z = aTxBuffer[5] | (int16_T)aTxBuffer[6] << 8;
+					aTxBuffer[0] = 0x31;	//low-power mode
+					aTxBuffer[1] = 0x00;
+					HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10);
+					return true;
+				}
+	}
+	aTxBuffer[0] = 0x31;	//low-power mode
+	aTxBuffer[1] = 0x00;
+	HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10);
+	return false;
+}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -104,10 +145,6 @@ uint8_t TCFormatReadI2C(uint16_t regAddr)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	  union {
-		  float quat[4];
-		  uint8_t bytes[16];
-	  } buffer;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -134,14 +171,14 @@ int main(void)
   MX_I2C2_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-
+  USBD_CUSTOM_HID_Init(&hUsbDeviceFS);
   //Currently unknown usage:
   //GPIOA, PIN 3
   //GPIOB, PINS 5, 9
   //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);	//GPIO B9 hi prevents Toshiba from receiving
   //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);	//GPIO B5 goes to light sensor, might be reset or input
-  //HAL_Delay(10);
-
+  HAL_Delay(10);
+/*
   //turn on LCD panel power (+/- 5.5V rail)
   //must come before bridge chip so bridge chip can configure it
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
@@ -233,7 +270,27 @@ int main(void)
   TCFormatI2C(0x8502, 0xFF, 1);
   TCFormatI2C(0x850B, 0xFF, 1);
   TCFormatI2C(0x0014, 0x0F3F, 2);
+*/
 
+  //Initialising the imu components while we wait for hdmi to be ready
+
+  //Mag: AsahiKASEI AK09915c (I2C2)
+  //soft reset
+  aTxBuffer[0] = 0x32;
+  aTxBuffer[1] = 0x01;
+  if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10) != HAL_OK)
+	  Error_Handler();
+  //low-power mode
+  aTxBuffer[0] = 0x31;
+  aTxBuffer[1] = 0x00;
+  if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10) != HAL_OK)
+	  Error_Handler();
+
+  //Gryro/Accel: InvenSense ICM-20602
+
+
+
+  /*
   //poll for hdmi plugged in and ready
   while(TCFormatReadI2C(0x8520) != 0x9F)
 	  HAL_Delay(500);	//takes about 1300 to 1400 ms for it to register if hdmi already plugged in, 0.5s delay is still fairly responsive
@@ -323,8 +380,15 @@ int main(void)
   HAL_Delay(100);
   //PB1 seems to be an input related to back light power
   //  because using it as an output prevents backlight from turning on while driven low
+*/
 
-
+  union {
+	  float items[7];
+	  uint8_t bytes[28];
+  } buffer;
+  quat q;
+  vec3 axis = {0,1,0};
+  float angle = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -334,12 +398,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  Quat_SetAxisAndAngle(&q, &axis, angle);
+	  angle += 0.00010471975511965977461542144610932;
+	  if(angle > 6.283185307179586476925286766559)
+		  angle -= 6.283185307179586476925286766559;
 	    // Send HID report
-	    buffer.quat[0] = 1;	//w
-	    buffer.quat[1] = 0;	//y
-	    buffer.quat[2] = 0;	//z
-	    buffer.quat[3] = 0; //x
-	    USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, &(buffer.bytes), sizeof(buffer));
+	    buffer.items[0] = q.w;	//w
+	    buffer.items[1] = q.x;	//x
+	    buffer.items[2] = q.y;	//y
+	    buffer.items[3] = q.z;	//z
+	    buffer.items[4] = 0;	//vx
+	    buffer.items[5] = 0;	//vy
+	    buffer.items[6] = 0;	//vz
+
+	    USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, buffer.bytes, sizeof(buffer));
 	    //HAL_Delay(1000);
 
   }

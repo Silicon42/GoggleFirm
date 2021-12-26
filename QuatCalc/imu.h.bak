@@ -1,0 +1,7 @@
+#include "exmath.h"
+#ifdef __cplusplus
+extern "C"{
+extern quat * IMU_Update( float dt );
+extern void IMU_Init( void );
+}
+#endif

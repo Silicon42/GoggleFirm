@@ -39,34 +39,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := ConversionFirm
+BUILD_ARTIFACT_NAME := GoggleFirm
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX := 
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME).$(BUILD_ARTIFACT_EXTENSION)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-ConversionFirm.elf \
+GoggleFirm.elf \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-ConversionFirm.list \
+GoggleFirm.list \
 
 OBJCOPY_BIN += \
-ConversionFirm.bin \
+GoggleFirm.bin \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: ConversionFirm.elf secondary-outputs
+main-build: GoggleFirm.elf secondary-outputs
 
 # Tool invocations
-ConversionFirm.elf: $(OBJS) $(USER_OBJS) C:\Users\me\STM32CubeIDE\workspace_1.6.1\ConversionFirm\STM32F401CCUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "ConversionFirm.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\me\STM32CubeIDE\workspace_1.6.1\ConversionFirm\STM32F401CCUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="ConversionFirm.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+GoggleFirm.elf: $(OBJS) $(USER_OBJS) C:\Users\Curtis\Documents\STM32CubeIdeWorkspace\GoggleFirm.git\trunk\GoggleFirm\STM32F401CCUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "GoggleFirm.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Curtis\Documents\STM32CubeIdeWorkspace\GoggleFirm.git\trunk\GoggleFirm\STM32F401CCUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="GoggleFirm.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -75,13 +75,13 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-ConversionFirm.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "ConversionFirm.list"
+GoggleFirm.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "GoggleFirm.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
-ConversionFirm.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "ConversionFirm.bin"
+GoggleFirm.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "GoggleFirm.bin"
 	@echo 'Finished building: $@'
 	@echo ' '
 

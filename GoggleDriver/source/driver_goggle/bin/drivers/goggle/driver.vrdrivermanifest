@@ -1,0 +1,11 @@
+{
+	"alwaysActivate": false,
+	"name" : "goggle",
+	"directory" : "",
+	"resourceOnly" : false,
+
+	"hmd_presence" :
+	[
+		"*.*"
+	]
+}
