@@ -64,6 +64,8 @@ void Error_Handler(void);
 #define ICM_RESV_GPIO_Port GPIOA
 #define ICM_FSYNC_Pin GPIO_PIN_2
 #define ICM_FSYNC_GPIO_Port GPIOA
+#define SPI1_CS_Pin GPIO_PIN_4
+#define SPI1_CS_GPIO_Port GPIOA
 #define BKLT_EN_Pin GPIO_PIN_0
 #define BKLT_EN_GPIO_Port GPIOB
 #define BKLT_FEEDBACK_Pin GPIO_PIN_1

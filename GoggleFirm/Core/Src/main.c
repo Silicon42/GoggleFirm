@@ -27,6 +27,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdbool.h"
 #include "hidfix.h"
 #include "exmath.h"
 /* USER CODE END Includes */
@@ -40,7 +41,7 @@
 /* USER CODE BEGIN PD */
 #define TC_ADDR 0x1E	//Toshiba TC358870XBG	I2C Address: 0x0F << 1
 #define AK_ADDR 0x1A	//AsahiKASEI AK09915c	I2C Address: 0x0D << 1
-//#define PROX_ADDR 0x90	//Proximity Sensor 		I2C Address: 0x48 << 1	//not really necessary since it's an LCD
+//#define PROX_ADDR 0x90	//Proximity Sensor 	I2C Address: 0x48 << 1	//not really necessary since it's an LCD
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,9 +52,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t aTxBuffer[9] = {0};
-uint8_t aRxBuffer[17] = {0};
-
+uint8_t buffer[15] = {0};
+static quat gQ_gyroFrame = {1,0,0,0};
+static vec3 gV_world_down = {0,0,1};
+static vec3 gV_world_north = {1,0,0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -72,15 +74,15 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
  */
 void TCFormatI2C(uint16_t regAddr, uint32_t data, uint8_t dsize)
 {
-	aTxBuffer[0] = (uint8_t)(regAddr >> 8);
-	aTxBuffer[1] = (uint8_t)regAddr;
-	aTxBuffer[2] = (uint8_t)data;
-	aTxBuffer[3] = (uint8_t)(data >> 8);
-	aTxBuffer[4] = (uint8_t)(data >> 16);
-	aTxBuffer[5] = (uint8_t)(data >> 24);
-	if ( HAL_I2C_Master_Transmit(&hi2c1, TC_ADDR, aTxBuffer, dsize+2, 10) != HAL_OK)
+	buffer[0] = (uint8_t)(regAddr >> 8);
+	buffer[1] = (uint8_t)regAddr;
+	buffer[2] = (uint8_t)data;
+	buffer[3] = (uint8_t)(data >> 8);
+	buffer[4] = (uint8_t)(data >> 16);
+	buffer[5] = (uint8_t)(data >> 24);
+	if ( HAL_I2C_Master_Transmit(&hi2c1, TC_ADDR, buffer, dsize+2, 10) != HAL_OK)
 		Error_Handler();
-	HAL_Delay(1);
+	HAL_Delay(1);	//needs some delay to properly ingest data
 }
 
 /**
@@ -88,53 +90,73 @@ void TCFormatI2C(uint16_t regAddr, uint32_t data, uint8_t dsize)
  */
 uint8_t TCFormatReadI2C(uint16_t regAddr)
 {
-	aTxBuffer[0] = (uint8_t)(regAddr >> 8);
-	aTxBuffer[1] = (uint8_t)regAddr;
-	if ( HAL_I2C_Master_Transmit(&hi2c1, TC_ADDR, aTxBuffer, 2, 10) == HAL_OK)
-		if( HAL_I2C_Master_Receive(&hi2c1, TC_ADDR, aTxBuffer, 1, 10) == HAL_OK)
-			return aTxBuffer[0];
+	buffer[0] = (uint8_t)(regAddr >> 8);
+	buffer[1] = (uint8_t)regAddr;
+	if ( HAL_I2C_Master_Transmit(&hi2c1, TC_ADDR, buffer, 2, 10) == HAL_OK)
+		if( HAL_I2C_Master_Receive(&hi2c1, TC_ADDR, buffer, 1, 10) == HAL_OK)
+			return buffer[0];
 	Error_Handler();
 	return 0x00;
 }
 
-struct AKMeasure
+struct Measure
 {
-	//bool dataReady;
-	//bool dataOverrun;
 	int16_t x;
 	int16_t y;
 	int16_t z;
-	//bool overflow;
-	//bool invalidData;	//only matters if using the FIFO mode
 };
 
 //returns true if data is valid	//TODO: clean this up a bit
-bool AKGetSingleMeasure(AKMeasure* data)
+bool AKGetMeasurement(struct Measure* data)
 {
-	aTxBuffer[0] = 0x31;	//single measure mode
-	aTxBuffer[1] = 0x01;
-	if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10) == HAL_OK)
+	buffer[0] = 0x10;	//read data
+	if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, buffer, 1, 10) == HAL_OK)
 	{
-		aTxBuffer[0] = 0x10;	//read data
-		if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 1, 10) == HAL_OK)
-			if( HAL_I2C_Master_Receive(&hi2c2, AK_ADDR, aTxBuffer, 8, 10) == HAL_OK)
-				if (aTxBuffer[0] | 1 && aTxBuffer[9] | 8)	//data ready and no overflow
-				{
-					data->x = aTxBuffer[1] | (int16_T)aTxBuffer[2] << 8;
-					data->y = aTxBuffer[3] | (int16_T)aTxBuffer[4] << 8;
-					data->z = aTxBuffer[5] | (int16_T)aTxBuffer[6] << 8;
-					aTxBuffer[0] = 0x31;	//low-power mode
-					aTxBuffer[1] = 0x00;
-					HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10);
-					return true;
-				}
+		if( HAL_I2C_Master_Receive(&hi2c2, AK_ADDR, buffer, 9, 10) == HAL_OK)
+		{
+			if ((buffer[0] & 1) && !(buffer[8] & 8))	//data ready and no overflow
+			{
+				//magnetometer axes (x, y, z) are (right, down, front)
+				//SteamVR expects (right, up, back)
+				//units are 0.15 uT
+				data->y = (int16_t)(buffer[1] | buffer[2] << 8);
+				data->z = (int16_t)(buffer[3] | buffer[4] << 8);
+				data->x = (int16_t)(buffer[5] | buffer[6] << 8);
+				return true;
+			}
+		}
 	}
-	aTxBuffer[0] = 0x31;	//low-power mode
-	aTxBuffer[1] = 0x00;
-	HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10);
 	return false;
 }
 
+bool ICMGetMeasurement(vec3* accelData, vec3* gyroData, int16_t* tempData)
+{
+	buffer[0] = 0xBB;	//read data
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+	HAL_Delay(1);
+	if(HAL_SPI_TransmitReceive(&hspi1, buffer, buffer, 15, 10)!=HAL_OK)
+		return false;
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+	HAL_Delay(1);
+
+	//accelerometer axes (x, y, z) are (right, down, back)
+	//SteamVR expects (right, up, back)
+	accelData->y = (int16_t)(buffer[ 1] << 8 | buffer[ 2]);
+	accelData->z = (int16_t)(buffer[ 3] << 8 | buffer[ 4]);
+	accelData->x = (int16_t)(buffer[ 5] << 8 | buffer[ 6]) * -1.0;
+	*tempData    = (int16_t)(buffer[ 7] << 8 | buffer[ 8]);
+	gyroData->y  = (int16_t)(buffer[ 9] << 8 | buffer[10]);
+	gyroData->z  = (int16_t)(buffer[11] << 8 | buffer[12]);
+	gyroData->x  = (int16_t)(buffer[14] << 8 | buffer[13]) * -1.0;
+
+	return true;
+}
+
+union UsbBuffer
+{
+	float items[7];
+	uint8_t bytes[28];
+};
 
 /* USER CODE END 0 */
 
@@ -274,21 +296,66 @@ int main(void)
 
   //Initialising the imu components while we wait for hdmi to be ready
 
-  //Mag: AsahiKASEI AK09915c (I2C2)
+
+  //Mag: AsahiKASEI AK09915c (on I2C2)
+
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET);
+  HAL_Delay(1);
   //soft reset
-  aTxBuffer[0] = 0x32;
-  aTxBuffer[1] = 0x01;
-  if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10) != HAL_OK)
+  buffer[0] = 0x32;
+  buffer[1] = 0x01;
+  HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, buffer, 2, 100);
+  HAL_Delay(1);
+
+  //test read WhoAmI
+  buffer[0] = 0x00;
+  HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, buffer, 1, 10);
+  HAL_I2C_Master_Receive(&hi2c2, AK_ADDR, buffer, 2, 10);
+
+  //control settings
+  buffer[0] = 0x30;
+  buffer[1] = 0x20; //enable noise filter
+  buffer[2] = 0x4A;	//low noise drive & continuous measurement 200Hz
+
+  if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, buffer, 3, 10) != HAL_OK)
 	  Error_Handler();
-  //low-power mode
-  aTxBuffer[0] = 0x31;
-  aTxBuffer[1] = 0x00;
-  if ( HAL_I2C_Master_Transmit(&hi2c2, AK_ADDR, aTxBuffer, 2, 10) != HAL_OK)
+
+  //Gryro/Accel: InvenSense ICM-20602 (on SPI1)
+
+  //soft reset
+  buffer[0] = 0x6B;	//write power management 1
+  buffer[1] = 0x80;	//set reset bit
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_Delay(1);
+  if(HAL_SPI_TransmitReceive(&hspi1, buffer, buffer, 2, 10)!=HAL_OK)
 	  Error_Handler();
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+  HAL_Delay(1);
 
-  //Gryro/Accel: InvenSense ICM-20602
+  //set sampling rate
+  buffer[0] = 0x19;	//write sample rate divider
+  buffer[1] = 0x04;	//200Hz
+  buffer[2] = 0x06;	//unexplained bit, maxed gyro and temp filtering
+  buffer[3] = 0x00;	//gyro scale +/- 250dps, filter bypass disabled
+  buffer[4] = 0x00;	//accel scale +/- 2g
+  buffer[5] = 0x36;	//32 accel sample averaging (in LP mode?), filter bypass disabled, max accel filtering
+  buffer[6] = 0x70;	//128 gyro sample averaging (in LP mode?)
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_Delay(1);
+  if(HAL_SPI_TransmitReceive(&hspi1, buffer, buffer, 7, 10)!=HAL_OK)
+	  Error_Handler();
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+  HAL_Delay(1);
 
-
+  //wake device
+  buffer[0] = 0x6B;	//write power management 1
+  buffer[1] = 0x01;	//wake device
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_Delay(1);
+  if(HAL_SPI_TransmitReceive(&hspi1, buffer, buffer, 2, 10)!=HAL_OK)
+	  Error_Handler();
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+  HAL_Delay(1);
 
   /*
   //poll for hdmi plugged in and ready
@@ -382,13 +449,28 @@ int main(void)
   //  because using it as an output prevents backlight from turning on while driven low
 */
 
-  union {
-	  float items[7];
-	  uint8_t bytes[28];
-  } buffer;
+  HAL_Delay(5);	//wait for accel/gyro filter to be populated
+  vec3 accelVec, gyroVec;
+  struct Measure magMeas;
+  int16_t tempData;
+  union UsbBuffer buf;
   quat q;
-  vec3 axis = {0,1,0};
-  float angle = 0;
+  //vec3 axis = {0,1,0};
+  //float angle = 0;
+
+	vec3 v_acc_meas, v_mag_meas, v_meas_world_down, v_meas_world_north, v_cross;
+	quat q_correct;
+	float mag_g, angle;
+	float heading, bank, attitude;
+
+	//variables related to keeping running sum
+	struct Measure magBuffer[256] = {{0,0,0}};
+	int32_t magSumX = 0;
+	int32_t magSumY = 0;
+	int32_t magSumZ = 0;
+	uint8_t sumIndex = 0;
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -398,21 +480,108 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  Quat_SetAxisAndAngle(&q, &axis, angle);
-	  angle += 0.00010471975511965977461542144610932;
-	  if(angle > 6.283185307179586476925286766559)
-		  angle -= 6.283185307179586476925286766559;
-	    // Send HID report
-	    buffer.items[0] = q.w;	//w
-	    buffer.items[1] = q.x;	//x
-	    buffer.items[2] = q.y;	//y
-	    buffer.items[3] = q.z;	//z
-	    buffer.items[4] = 0;	//vx
-	    buffer.items[5] = 0;	//vy
-	    buffer.items[6] = 0;	//vz
+//	HAL_Delay(5);
 
-	    USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, buffer.bytes, sizeof(buffer));
-	    //HAL_Delay(1000);
+	//keep a running sum to smooth magnetometer readings b/c AK09915 has ~10 bits worth of data for Earth's magnetic field strength
+	if(AKGetMeasurement(&magMeas) == true)
+	{
+		magSumX -= magBuffer[sumIndex].x;
+		magSumY -= magBuffer[sumIndex].y;
+		magSumZ -= magBuffer[sumIndex].z;
+
+		magBuffer[sumIndex++] = magMeas;
+
+		magSumX += magMeas.x;
+		magSumY += magMeas.y;
+		magSumZ += magMeas.z;
+
+		v_mag_meas.x = magSumX;
+		v_mag_meas.y = magSumY;
+		v_mag_meas.z = magSumZ;
+	}
+	else
+		while(1);
+
+	if(ICMGetMeasurement(&accelVec, &gyroVec, &tempData) != true)
+		while(1);
+
+
+	if(v3normalize( &v_acc_meas, &accelVec) == 0)
+		v_acc_meas = gV_world_down;
+
+	if(v3normalize( &v_mag_meas, &v_mag_meas) == 0)
+		v_mag_meas = gV_world_north;
+
+	//v3normalize( &v_gyro_meas, &gyroVec);
+
+//  ---------------   measurement taken,normalized and stored in vectors: acc, mag, v_mag_meas, v_acc_meas  --------------------
+#define INTEGRATING
+#ifdef INTEGRATING
+
+	// used when we incrementally maintain the sensor body attitude in the loop and apply correction to the last measured attitude each pass
+	//                                 out
+	Quat_RotateVec3( &gQ_gyroFrame, &v_meas_world_down, &v_acc_meas);
+#else
+ // 	this is to directly calculate the attitude of the body once per loop -- Comment out if incremental correction is wanted.  --
+	Quat_Set( &gQ_gyroFrame, 1.0f, 0.0f, 0.0f, 0.0f );	// North and Level reference attitude --
+	v_meas_world_down.x = v_acc_meas.x;
+	v_meas_world_down.y = v_acc_meas.y;
+	v_meas_world_down.z = v_acc_meas.z;
+
+	v_meas_world_north.x = v_mag_meas.x;
+	v_meas_world_north.y = v_mag_meas.y;
+	v_meas_world_north.z = v_mag_meas.z;
+#endif
+	//      v_out   ,v_in1             , vin_2
+	v3cross(&v_cross,&v_meas_world_down, &gV_world_down);	// create the 90 deg vector to rotate around from the measured G vector and the world view G vector
+
+	mag_g =  v3normalize(&v_cross,&v_cross); // The magnitude can not be used as the angle to rotate-- it can only provides  0-90 degrees, not 180
+
+	// calculate the angle to rotate, this gives the 0-180 degrees we need
+	angle = fabs( clamped_acos( v3dot( &v_meas_world_down, &gV_world_down) ) ); // Angles are always positive since the rotation angle flips appropriately.
+
+//	if(angle > 0.001)
+//		angle = 0.001;
+//	angle = 0;
+
+	// With the angle to rotate and the axis to rotate around, form a rotation quaternion (q_correct) - Then apply that to the quaternion representing the
+	// the sensor body( Q_gyroFrame).
+
+	Quat_SetAxisAndAngle( &q_correct, &v_cross, angle);
+	Quat_Multiply( &gQ_gyroFrame, &q_correct, &gQ_gyroFrame );
+
+	// now the same for the mag ---------------------------------------------------
+#define do_mag
+#ifdef do_mag
+					// in 			// out 				/in
+	Quat_RotateVec3( &gQ_gyroFrame, &v_meas_world_north, &v_mag_meas);
+	v_meas_world_north.z = 0.0f;	// take Z component out -- flatten to x & y only because of inclination ??
+	v3normalize(&v_meas_world_north,&v_meas_world_north);
+
+	v3cross(&v_cross,&v_meas_world_north, &gV_world_north);
+	v3normalize(&v_cross,&v_cross);
+
+	angle = fabs( clamped_acos( v3dot( &v_meas_world_north, &gV_world_north) ) ); // Angles are always positive since the rotation angle flips appropriately.
+
+//	if(angle > 0.001)
+//		angle = 0.001;
+//	angle = 0;
+	// Get the quat that rotates our sensor toward the world vector by the specified amount
+	Quat_SetAxisAndAngle( &q_correct, &v_cross, angle);
+	Quat_Multiply( &gQ_gyroFrame, &q_correct, &gQ_gyroFrame );
+#endif
+	Quat_ToEuler( &gQ_gyroFrame, &heading, &bank, &attitude);
+
+	// Send HID report
+	buf.items[0] = gQ_gyroFrame.w;	//w
+	buf.items[1] = gQ_gyroFrame.y;	//x
+	buf.items[2] = -gQ_gyroFrame.z;	//y
+	buf.items[3] = -gQ_gyroFrame.x;	//z
+	buf.items[4] = 0;	//vx
+	buf.items[5] = 0;	//vy
+	buf.items[6] = 0;	//vz
+
+	USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, buf.bytes, sizeof(buf));
 
   }
   /* USER CODE END 3 */

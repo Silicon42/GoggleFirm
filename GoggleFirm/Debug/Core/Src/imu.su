@@ -1,0 +1,6 @@
+imu.c:57:1:IMU_SetNorthVector	56	static
+imu.c:79:1:IMU_Init	8	static
+imu.c:100:1:IMU_IntegrateGyros	56	static
+imu.c:127:1:IMU_GetAircraftSpaceState	24	static
+imu.c:143:1:IMU_GetErectorQuat	56	static
+imu.c:173:6:IMU_Update	104	static
