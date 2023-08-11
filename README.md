@@ -6,10 +6,9 @@ This project was originally intended as a custom firmware for the WVR1 because I
 ## Current Capabilities:
 - Screen displays properly
 - Working USB descriptor
-
+- Working SteamVR driver, gets input in the form of a quaternion
 ## Immediate Goals:
-- Working SteamVR driver, either through emulating another headset or writing my own
-- sensor fusion and tracking, currently only outputting dummy data
+- sensor fusion and tracking, currently only very basic acc + mag fusion implemented with no real filtering
 - tweak edid and panel settings, currently only using a mildly optimized duplicate of the factory provided setup
 
 ## Stretch/Eventual Goals:
